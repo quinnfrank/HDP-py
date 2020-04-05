@@ -3,7 +3,7 @@ Repository for final 663 project on Hierarchical Dirichlet Processes
 
 I made separate subdirectories for each of our work for now, so that the Jupyter checkpoints don't conflict with each other, but we can still share easily.  Just commit to your subdirectory for now if you want, and we may have to just merge stuff together manually in the main section of the repository.
 
-[SCHEDULE](https://docs.google.com/spreadsheets/d/1jrkzsu9ot5mXI35155mnsbgLDkxseG7ePgzGwK5jiwQ/edit?ts=5e89fec7#gid=0)
+[*SCHEDULE*](https://docs.google.com/spreadsheets/d/1jrkzsu9ot5mXI35155mnsbgLDkxseG7ePgzGwK5jiwQ/edit?ts=5e89fec7#gid=0)
 
 (Copying from Morris's email):
 
@@ -26,6 +26,7 @@ I made separate subdirectories for each of our work for now, so that the Jupyter
 
 -----------------
 **Other:**
+
 [Relevant Bayesian Non-Parametrics Slides](http://mlg.eng.cam.ac.uk/tutorials/07/ywt.pdf)
 
 
