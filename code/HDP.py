@@ -166,9 +166,7 @@ def cat_fk_cust(i, x, k, Kmax, L, ha, new=False):
 
 
 def cat_fk_cust2(i, x, k, Kmax, L, ha, new=False):
-    """
-    Faster version of the above.
-    """
+    """Faster version of the above."""
     
     xi = x[i, :]
     ll = sparse.find(xi)[1][0]        # get column index of the 1 value
@@ -188,9 +186,7 @@ def cat_fk_cust2(i, x, k, Kmax, L, ha, new=False):
 
 @jit(float64[:](int64, int32[:,:], int32[:], int64, int64, float64[:]), nopython=True)
 def cat_fk_cust3(i, x, k, Kmax, L, ha):
-    """
-    Numba-compiled version of the above.
-    """
+    """Numba-compiled version of the above where New=False.  Does not support sparse matrices."""
     
     ll = 0                           # get column index of the 1 value
     for idx in range(L):
@@ -220,9 +216,7 @@ def cat_fk_cust3(i, x, k, Kmax, L, ha):
 
 @jit(float64(int64, int32[:,:], int32[:], int64, int64, float64[:]), nopython=True)
 def cat_fk_cust3_new(i, x, k, Kmax, L, ha):
-    """
-    Numba-compiled version of the above.
-    """
+    """Numba-compiled version of the above where new=True."""
     
     ll = 0                           # get column index of the 1 value
     for idx in range(L):
@@ -338,11 +332,10 @@ class HDP:
     
     PRIVATE ATTRIBUTES (volatile)
     - tk_map_: (J x Tmax) matrix of k values for each (j,t) pair
-    - beta_: (Kmax + 1,) vector of beta values for each k
     - n_: (J x Tmax) matrix specifying counts of customers (gibbs_cfr)
     - q_: (J x Kmax) matrix specifying counts of customers (gibbs_direct)
     - m_: (J x Kmax) matrix specifying counts of tables
-    - fk_cust_, fk_tabl_: functions to compute mixing components for Gibbs sampling
+    - fk_cust_, fk_cust_new_, fk_tabl_: functions to compute mixing components for Gibbs sampling
     - stir_: an object of class StirlingEngine which computes Stirling numbers
     
     PUBLIC ATTRIBUTES
@@ -393,8 +386,8 @@ class HDP:
             self.fk_cust_new_ = partial(cat_fk_cust, new=True)
             self.fk_tabl_ = mnom_fk_tabl
             
-        elif f == 'categorical_numba':
-            # Identical to multinomial, but with some efficiency upgrades
+        elif f == 'categorical_fast':
+            # Even more efficient version of categorical; does not support sparse matrices
             if hypers is None:
                 L = 2
                 self.hypers_ = (L, np.ones(L))
@@ -404,6 +397,8 @@ class HDP:
             self.fk_cust_ = cat_fk_cust3
             self.fk_cust_new_ = cat_fk_cust3_new
             self.fk_tabl_ = mnom_fk_tabl
+            
+        else: raise ValueError
 
     
     def tally_up(self, it, which=None):
@@ -428,9 +423,7 @@ class HDP:
             jt_unique, k_idx = np.unique(jt_pairs, axis=0, return_index=True)
             jk_pairs = np.c_[self.cfr_samples[it, k_idx, 0],
                              self.cfr_samples[it, k_idx, 2]]
-            #print(jk_pairs)
             tabl_counts = pd.Series(map(tuple, jk_pairs)).value_counts()
-            #print(tabl_counts)
             j_idx, k_idx = tuple(map(np.array, zip(*tabl_counts.index)))
             self.m_ *= 0
             self.m_[j_idx, k_idx] = tabl_counts
@@ -578,7 +571,7 @@ class HDP:
             self.q_[jj, kk1] += 1
             
             # If this k value was previously unused, must also set the beta_k component
-            if np.sum(self.q_[:, kk1] == 1):
+            if np.sum(self.q_[:, kk1]) == 1:
                 b = np.random.beta(1, self.g_)
                 beta_u = self.beta_samples[it, -1]
                 self.beta_samples[it, kk1] = b * beta_u
