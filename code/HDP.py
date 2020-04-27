@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from scipy.special import gammaln as logg
+from functools import partial
+from numba import jit, float64, int64, int32
 
 
 def pois_fk_cust(i, x, k, Kmax, ha, hb, new=False):
@@ -150,7 +152,7 @@ def cat_fk_cust(i, x, k, Kmax, L, ha, new=False):
     """
     
     xi = x[i, :]
-    ll = sparse.find(xi)[0][0]        # get index of the 1 value
+    ll = sparse.find(xi)[1][0]        # get column index of the 1 value
     # Calculate the case where k has no members
     if new == True:
         return ha[ll] / np.sum(ha)    
@@ -161,6 +163,79 @@ def cat_fk_cust(i, x, k, Kmax, L, ha, new=False):
     
     fk_cust = (Vl_kks + ha[ll]) / (V_kks + np.sum(ha))
     return fk_cust
+
+
+def cat_fk_cust2(i, x, k, Kmax, L, ha, new=False):
+    """
+    Faster version of the above.
+    """
+    
+    xi = x[i, :]
+    ll = sparse.find(xi)[1][0]        # get column index of the 1 value
+    # Calculate the case where k has no members
+    if new == True:
+        return ha[ll] / np.sum(ha)    
+    
+    # Store the size of sets V and V_l for each k
+    V_kks = np.zeros(Kmax)
+    kk_counts = pd.Series(k).value_counts()
+    V_kks[kk_counts.index] = kk_counts
+    Vl_kks = np.array([np.sum(x[k == kk, ll]) for kk in range(Kmax)])
+    
+    fk_cust = (Vl_kks + ha[ll]) / (V_kks + np.sum(ha))
+    return fk_cust
+
+
+@jit(float64[:](int64, int32[:,:], int32[:], int64, int64, float64[:]), nopython=True)
+def cat_fk_cust3(i, x, k, Kmax, L, ha):
+    """
+    Numba-compiled version of the above.
+    """
+    
+    ll = 0                           # get column index of the 1 value
+    for idx in range(L):
+        if x[i, idx] == 1:
+            ll = idx
+            break
+    
+    ha_sum = 0
+    for idx in range(L):
+        ha_sum += ha[idx]
+    
+    # Store the size of sets V and V_l for each k
+    V_kks = np.zeros(Kmax)
+    Vl_kks = np.zeros(Kmax) 
+    fk_cust = np.zeros(Kmax)
+    N = x.shape[0]
+    for kk in range(Kmax):
+        # Compute a mask which gives the i indices of observations with value k
+        for idx in range(N):
+            if k[idx] == kk:
+                V_kks[kk] += 1
+                Vl_kks[kk] += x[idx, ll]
+        fk_cust[kk] = (Vl_kks[kk] + ha[ll]) / (V_kks[kk] + ha_sum)
+    
+    return fk_cust
+
+
+@jit(float64(int64, int32[:,:], int32[:], int64, int64, float64[:]), nopython=True)
+def cat_fk_cust3_new(i, x, k, Kmax, L, ha):
+    """
+    Numba-compiled version of the above.
+    """
+    
+    ll = 0                           # get column index of the 1 value
+    for idx in range(L):
+        if x[i, idx] == 1:
+            ll = idx
+            break
+            
+    # Calculate the case where k has no members
+    ha_sum = 0
+    for idx in range(L):
+        ha_sum += ha[idx]
+        
+    return ha[ll] / ha_sum
         
 
 ########################################################################################
@@ -296,6 +371,7 @@ class HDP:
                 self.hypers_ = (1,1)
             else: self.hypers_ = hypers
             self.fk_cust_ = pois_fk_cust
+            self.fk_cust_new_ = partial(pois_fk_cust, new=True)
             self.fk_tabl_ = pois_fk_tabl
         
         elif f == 'multinomial':
@@ -304,6 +380,7 @@ class HDP:
                 self.hypers_ = (L, np.ones(L))
             else: self.hypers_ = hypers
             self.fk_cust_ = mnom_fk_cust
+            self.fk_cust_new_ = partial(mnom_fk_cust, new=True)
             self.fk_tabl_ = mnom_fk_tabl
             
         elif f == 'categorical':
@@ -313,8 +390,21 @@ class HDP:
                 self.hypers_ = (L, np.ones(L))
             else: self.hypers_ = hypers
             self.fk_cust_ = cat_fk_cust
+            self.fk_cust_new_ = partial(cat_fk_cust, new=True)
             self.fk_tabl_ = mnom_fk_tabl
-    
+            
+        elif f == 'categorical_numba':
+            # Identical to multinomial, but with some efficiency upgrades
+            if hypers is None:
+                L = 2
+                self.hypers_ = (L, np.ones(L))
+            else:
+                # Ensure hyperparameters have proper data types, for numba functions
+                self.hypers_ = (int(hypers[0]), hypers[1].astype('float'))
+            self.fk_cust_ = cat_fk_cust3
+            self.fk_cust_new_ = cat_fk_cust3_new
+            self.fk_tabl_ = mnom_fk_tabl
+
     
     def tally_up(self, it, which=None):
         """
@@ -374,7 +464,8 @@ class HDP:
             dist = old * used + (new / num_unused) * np.logical_not(used)
         
         # Remove nans and add epsilon so that distribution is all positive
-        dist[np.isnan(dist)] = 0
+        #print(f"{dist.round(3)} (sum = {np.sum(dist)})")
+        dist[np.logical_not(np.isfinite(dist))] = 0
         dist += 1e-10
         return dist / np.sum(dist)
     
@@ -471,7 +562,7 @@ class HDP:
             
             # Get vector of customer f_k values (dependent on model specification)
             old_mixes = self.fk_cust_(i, x, k_next, Kmax, *self.hypers_) 
-            new_mixes = self.fk_cust_(i, x, k_next, Kmax, *self.hypers_, new=True) 
+            new_mixes = self.fk_cust_new_(i, x, k_next, Kmax, *self.hypers_) 
             
             cust_offset = np.zeros(Kmax)
             cust_offset[kk0] = 1
@@ -515,14 +606,14 @@ class HDP:
             m_dist = np.exp( logg(abk) - logg(abk + max_m) +
                              log_s + m_range * np.log(abk) )
             """MOSTLY FIXED.  m_dist should be a proper distribution"""
-            m_dist[np.isnan(m_dist)] = 0
-            m_dist += 1e-6
+            m_dist[np.logical_not(np.isfinite(m_dist))] = 0
+            m_dist += 1e-10
             
             mm1 = np.random.choice(m_range, p=m_dist/np.sum(m_dist))
             self.m_[jj, kk] = mm1
                 
     
-    def gibbs_cfr(self, x, j, iters, Tmax=None, Kmax=None, resume=False, verbose=False):
+    def gibbs_cfr(self, x, j, iters, Tmax=None, Kmax=None, verbose=False):
         """
         Runs the Gibbs sampler to generate posterior estimates of t and k.
         x: data matrix, stored row-wise if multidimensional
@@ -530,7 +621,6 @@ class HDP:
         iters: number of iterations to run
         Tmax: maximum number of clusters for each group
         Kmax: maximum number of atoms to draw from base measure H
-        resume: if True, will continue from end of previous direct_samples, if dimensions match up
         
         returns: this HDP object with cfr_samples attribute
         """
@@ -582,20 +672,20 @@ class HDP:
         returns: this HDP object with direct_samples attribute
         """
         
+        group_counts = pd.Series(j).value_counts()
+        J, N = np.max(j) + 1, len(j)
+        if Kmax is None: Kmax = min(100, N)
+        
         prev_direct, prev_beta = None, None
         start = 0
         if resume == True:
             # Make sure the x passed in is the same size as it previously was
-            assert (x.shape[0] == self.direct_samples.shape[1] and
+            assert (N == self.direct_samples.shape[1] and
                     Kmax == self.beta_samples.shape[1] - 1), "Cannot resume with different data."
             iters += self.direct_samples.shape[0]
             prev_direct, prev_beta = self.direct_samples, self.beta_samples
             start = self.direct_samples.shape[0]
         
-        group_counts = pd.Series(j).value_counts()
-        J, N = np.max(j) + 1, len(j)
-        if Kmax is None: Kmax = min(100, N)
-            
         self.direct_samples = np.zeros((iters+1, N, 2), dtype='int')
         self.direct_samples[:,:,0] = j
         self.beta_samples = np.zeros((iters+1, Kmax+1))
