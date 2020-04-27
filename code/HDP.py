@@ -535,7 +535,7 @@ class HDP:
                 #print(f"m_dist: {m_dist.round(3)}")
                 
     
-    def gibbs_cfr(self, x, j, iters, Tmax=None, Kmax=None, verbose=False):
+    def gibbs_cfr(self, x, j, iters, Tmax=None, Kmax=None, resume=False, verbose=False):
         """
         Runs the Gibbs sampler to generate posterior estimates of t and k.
         x: data matrix, stored row-wise if multidimensional
@@ -543,6 +543,7 @@ class HDP:
         iters: number of iterations to run
         Tmax: maximum number of clusters for each group
         Kmax: maximum number of atoms to draw from base measure H
+        resume: if True, will continue from end of previous direct_samples, if dimensions match up
         
         returns: this HDP object with cfr_samples attribute
         """
@@ -557,6 +558,7 @@ class HDP:
         self.m_ = np.zeros((J, Kmax), dtype='int')
         self.cfr_samples = np.zeros((iters+1, N, 3), dtype='int')
         self.cfr_samples[:,:,0] = j
+        np.seterr('ignore')
         
         # Set random initial values for t and k assignments
         t0, k0 = self.cfr_samples[0,:,1], self.cfr_samples[0,:,2]
@@ -582,47 +584,64 @@ class HDP:
         return self  
     
     
-    def gibbs_direct(self, x, j, iters, Kmax=None, verbose=False):
+    def gibbs_direct(self, x, j, iters, Kmax=None, resume=False, verbose=False):
         """
         Runs the Gibbs sampler to generate posterior estimates of k.
         x: data matrix, stored row-wise if multidimensional
         j: vector of group labels; must have same #rows as x
         iters: number of iterations to run
         Kmax: maximum number of atoms to draw from base measure H
+        resume: if True, will continue from end of previous direct_samples, if dimensions match up
         
         returns: this HDP object with direct_samples attribute
         """
+        
+        prev_direct, prev_beta = None, None
+        start = 0
+        if resume == True:
+            # Make sure the x passed in is the same size as it previously was
+            assert (x.shape[0] == self.direct_samples.shape[1] and
+                    Kmax == self.beta_samples.shape[1] - 1), "Cannot resume with different data."
+            iters += self.direct_samples.shape[0]
+            prev_direct, prev_beta = self.direct_samples, self.beta_samples
+            start = self.direct_samples.shape[0]
         
         group_counts = pd.Series(j).value_counts()
         J, N = np.max(j) + 1, len(j)
         if Kmax is None: Kmax = min(100, N)
             
-        self.q_ = np.zeros((J, Kmax), dtype='int')   # performs the same function as n_
-        self.m_ = np.zeros((J, Kmax), dtype='int')
         self.direct_samples = np.zeros((iters+1, N, 2), dtype='int')
         self.direct_samples[:,:,0] = j
         self.beta_samples = np.zeros((iters+1, Kmax+1))
-        
         self.stir_ = StirlingEngine(np.max(group_counts) + 1)
         np.seterr('ignore')
         
-        # Set random initial values for k assignments
-        k0 = self.direct_samples[0,:,1]
-        k0[:] = np.random.randint(0, Kmax, size=N)
-        self.tally_up(it=0, which='q')
-        # Implicitly set random t assignments by drawing possible m counts (m_jk <= q_jk)
-        for jj in range(J):
-            for kk in range(Kmax):
-                max_m = self.q_[jj, kk]
-                if max_m == 1:
-                    self.m_[jj, kk] = 1
-                elif max_m > 1:
-                    self.m_[jj, kk] = np.random.randint(1, max_m)
-        # Compute the corresponding beta values from m assignments
-        Mk = np.sum(self.m_, axis=0)
-        self.beta_samples[0,:] = np.random.dirichlet(np.append(Mk, self.g_) + 1e-10)
+        if resume == True:
+            # Fill in the start of the samples with the previously computed samples
+            self.direct_samples[1:start+1,:,1] = prev_direct
+            self.beta_samples[1:start+1,:] = prev_beta
+            # q_ and m_ attributes should already still exist within the object
+        else:
+            self.q_ = np.zeros((J, Kmax), dtype='int')   # performs the same function as n_
+            self.m_ = np.zeros((J, Kmax), dtype='int')
+            
+            # Set random initial values for k assignments
+            k0 = self.direct_samples[0,:,1]
+            k0[:] = np.random.randint(0, Kmax, size=N)
+            self.tally_up(it=0, which='q')
+            # Implicitly set random t assignments by drawing possible m counts (m_jk <= q_jk)
+            for jj in range(J):
+                for kk in range(Kmax):
+                    max_m = self.q_[jj, kk]
+                    if max_m == 1:
+                        self.m_[jj, kk] = 1
+                    elif max_m > 1:
+                        self.m_[jj, kk] = np.random.randint(1, max_m)
+            # Compute the corresponding beta values from m assignments
+            Mk = np.sum(self.m_, axis=0)
+            self.beta_samples[0,:] = np.random.dirichlet(np.append(Mk, self.g_) + 1e-10)
         
-        for s in range(iters):
+        for s in range(start, iters):
             # Copy over the previous iteration as a starting point
             self.direct_samples[s+1,:,1] = self.direct_samples[s,:,1] 
             self.beta_samples[s+1,:] = self.beta_samples[s,:]
