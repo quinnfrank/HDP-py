@@ -424,9 +424,6 @@ class HDP:
                 self.tk_map_[jj, tt1] = kk1
                 k_next[i] = self.tk_map_[jj, tt1]
             self.tally_up(it, which='m')
-
-            #if verbose: print(f"~ customer (j,i) = {(jj,i)}" +
-                              #f" moves table: {tt0} -> {t_next[i]}, k: {kk0} -> {k_next[i]}")
     
     
     def draw_k(self, it, x, j, Kmax, verbose):
@@ -458,8 +455,6 @@ class HDP:
             self.tk_map_[jj, tt] = kk1
             k_next[np.logical_and(j == jj, t_next == tt)] = kk1
             self.tally_up(it, which='m')
-
-            #if verbose: print(f"~~ table (j,t) = {(jj,tt)} changes dish: {kk0} -> {kk1}")
     
     
     def draw_z(self, it, x, j, Kmax, verbose):
@@ -488,7 +483,8 @@ class HDP:
 
             kk1 = np.random.choice(Kmax, p=k_dist)
             k_next[i] = kk1
-            self.tally_up(it, which='q')
+            self.q_[jj, kk0] -= 1
+            self.q_[jj, kk1] += 1
             
             # If this k value was previously unused, must also set the beta_k component
             if np.sum(self.q_[:, kk1] == 1):
@@ -496,11 +492,6 @@ class HDP:
                 beta_u = self.beta_samples[it, -1]
                 self.beta_samples[it, kk1] = b * beta_u
                 self.beta_samples[it, -1] = (1-b) * beta_u
-            
-            #if verbose:
-                #print(f"~ customer (j,i) = {(jj,i)}" +
-                      #f"changes dish: {kk0} -> {kk1}")
-                #print(f"  k_dist: {k_dist.round(3)} (sum {np.sum(k_dist)})")
                 
     
     def draw_m(self, it, x, j, Kmax, verbose):
@@ -529,10 +520,6 @@ class HDP:
             
             mm1 = np.random.choice(m_range, p=m_dist/np.sum(m_dist))
             self.m_[jj, kk] = mm1
-
-            #if verbose:
-                #print(f"~~ restaraunt {jj}: {mm1} tables / {max_m} customers eating {kk}")
-                #print(f"m_dist: {m_dist.round(3)}")
                 
     
     def gibbs_cfr(self, x, j, iters, Tmax=None, Kmax=None, resume=False, verbose=False):
@@ -567,7 +554,6 @@ class HDP:
         self.tally_up(it=0, which='n')
         for jj in range(J):
             for tt in np.where(self.n_[jj, :] > 0)[0]:
-                #print(f"mapping: {(jj, tt)} -> {self.tk_map_[jj, tt]}")
                 k0[np.logical_and(j == jj, t0 == tt)] = self.tk_map_[jj, tt]
         self.tally_up(it=0, which='m')
         
