@@ -5,6 +5,9 @@ from nltk.corpus import stopwords
 import pandas as pd
 from functools import reduce
 import numpy as np
+import re
+import os
+from bs4 import BeautifulSoup
 
 
 def docsToList(data):
@@ -145,7 +148,7 @@ def get_nematode(max_docs = None, min_word_count = 1):
 
 def get_reuters(max_docs = None, min_word_count = 1, data_dir = '../data'):
     """
-    Returns a list of list of words in the Reuters data.
+    Returns the data matrix X and document encodings j in the Reuters data.
     data_dir: a path to the directory containing the pre-downloaded Reuters data.
     """
     
@@ -174,7 +177,22 @@ def get_reuters(max_docs = None, min_word_count = 1, data_dir = '../data'):
     docs = [i.replace('reuter', ' ') for i in docs] # the name of the company at the end of most articles
     docs = [i.split() for i in docs]
     
-    return docs
+    if max_docs is None:
+        max_docs = len(cocs)
+    return listsToVec(docs[:max_docs], min_word_count=min_word_count)
+
+
+def get_test_data(N, L, Jmax):
+    """
+    Returns the data matrix X and group encodings j for a random set of multinomial data.
+    X is an (N,L) matrix and j is an (N,) vector with values drawn from [0,Jmax-1]
+    """
+    
+    j = np.random.choice(Jmax, size=N)
+    Xtest = np.zeros((N, L), dtype='int')
+    col_choices = np.random.choice(L, size=N)
+    Xtest[range(N), col_choices] = 1
+    return Xtest, j
 
 
     
