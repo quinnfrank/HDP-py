@@ -5,6 +5,9 @@ from nltk.corpus import stopwords
 import pandas as pd
 from functools import reduce
 import numpy as np
+import re
+import os
+from bs4 import BeautifulSoup
 
 
 def docsToList(data):
@@ -174,7 +177,9 @@ def get_reuters(max_docs = None, min_word_count = 1, data_dir = '../data'):
     docs = [i.replace('reuter', ' ') for i in docs] # the name of the company at the end of most articles
     docs = [i.split() for i in docs]
     
-    return docs
+    if max_docs is None:
+        max_docs = len(cocs)
+    return listsToVec(docs[:max_docs], min_word_count=min_word_count)
 
 
     
