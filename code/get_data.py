@@ -148,7 +148,7 @@ def get_nematode(max_docs = None, min_word_count = 1):
 
 def get_reuters(max_docs = None, min_word_count = 1, data_dir = '../data'):
     """
-    Returns a list of list of words in the Reuters data.
+    Returns the data matrix X and document encodings j in the Reuters data.
     data_dir: a path to the directory containing the pre-downloaded Reuters data.
     """
     
