@@ -20,22 +20,32 @@ import matplotlib.pyplot as plt
 #comparable due to other variables that were not controlled.
 
 #Population size rates in each population
+np.random.seed(111)
 Study1_rates = np.random.uniform(low=0, high=50, size=4)
+np.random.seed(112)
 Study1_rates[3] = Study1_rates[2] + Study1_rates[1] + np.random.uniform(low=-.1,high=.1)*Study1_rates[2]*Study1_rates[1]
-Study2_rates = np.array((Study1_rates[0]+np.random.uniform(low=-1.5, high=1.5), 
+np.random.seed(222)
+Study2_rates = np.array((Study1_rates[0]+np.random.uniform(low=-0.5, high=0.5), 
                          np.random.uniform(low=0, high=50), 
-                         Study1_rates[2]+np.random.uniform(low=-1.5, high=1.5), 
+                         Study1_rates[2]+np.random.uniform(low=-0.5, high=0.5), 
                          np.random.uniform(low=0, high=50)))
+np.random.seed(223)
 Study2_rates[3] = Study2_rates[2] + Study2_rates[1] + np.random.uniform(low=-.1,high=.1)*Study2_rates[2]*Study2_rates[1]
+np.random.seed(333)
 Study3_rates = np.random.uniform(low=0, high=50, size=4)
-Study3_rates[0] = Study2_rates[0]+np.random.uniform(low=-1.5, high=1.5)
+np.random.seed(334)
+Study3_rates[0] = Study2_rates[0]+np.random.uniform(low=-0.5, high=0.5)
+np.random.seed(335)
 Study3_rates[3] = Study3_rates[2] + Study3_rates[1] + np.random.uniform(low=-.1,high=.1)*Study3_rates[2]*Study3_rates[1]
 
 
 #Each set of conditions in study 1 done 20 times, study 2 16 times,
 #study 3 10 times:
+np.random.seed(113)
 study1_obs = np.random.poisson(lam=Study1_rates, size=(20,4))
+np.random.seed(224)
 study2_obs = np.random.poisson(lam=Study2_rates, size=(16,4))
+np.random.seed(336)
 study3_obs = np.random.poisson(lam=Study3_rates, size=(10,4))
 
 pop_obs = np.concatenate((study1_obs.flatten(), study2_obs.flatten(), study3_obs.flatten()))
@@ -87,6 +97,6 @@ for i in range(3):
             maxn = 184
         title = studies[i] + ": " + conditions[i][j]
         data = c.direct_samples.T[minn+j:maxn:4,450:500]
-        images.append(axn[i,j].imshow(data, cmap="jet", vmin=minv, vmax=maxv))
+        images.append(axn[i,j].imshow(data, cmap="Set3", vmin=minv, vmax=maxv))
         axn[i, j].label_outer()
         axn[i, j].set_title(title)
