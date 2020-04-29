@@ -195,6 +195,10 @@ def get_test_data(N, L, Jmax):
     return Xtest, j
 
 def get_simulated_pop_data():
+    """
+    Returns the data matrix X, study encodings j, and latent study-group information
+    z for 3 simulated studies of ant populations. Each row corresponds to a unique trial
+    """
     Study1_rates = np.random.uniform(low=0, high=50, size=4)
     Study1_rates[3] = Study1_rates[2] + Study1_rates[1] + np.random.uniform(low=-.1,high=.1)*Study1_rates[2]*Study1_rates[1]
     Study2_rates = np.array((Study1_rates[0]+np.random.uniform(low=-1.5, high=1.5), 
