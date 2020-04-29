@@ -478,7 +478,7 @@ class HDP:
 
             # Get vector of customer f_k values (dependent on model specification)
             old_mixes = self.fk_cust_(i, x, k_next, Kmax, *self.hypers_) 
-            new_mixes = self.fk_cust_(i, x, k_next, Kmax, *self.hypers_, new=True) 
+            new_mixes = self.fk_cust_new_(i, x, k_next, Kmax, *self.hypers_) 
             # Calculate pointwise likelihoods p(x_ji | ...)
             M = np.sum(self.m_)
             Mk = np.sum(self.m_, axis=0)   # number of tables serving k
