@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="hdp_py",
-    version="0.0.1",
+    version="0.1",
     author="Quinn Frank, Morris Greenberg, George Lindner",
     author_email="quinn.frank@duke.edu, morris.greenberg@duke.edu, george.lindner@duke.edu",
     description="A Python implementation of the hierarchical Dirichlet process proposed in Teh, et al (2006)",
