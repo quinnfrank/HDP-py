@@ -13,6 +13,8 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/quinnfrank/hdp-py",
     packages=setuptools.find_packages(),
+    package_dir={'hdp_py': 'hdp_py'},
+    package_data={'hdp_py': ['data/*.sgm']},
     classifiers=[
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: MIT License",

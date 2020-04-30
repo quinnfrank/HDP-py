@@ -7,6 +7,7 @@ from functools import reduce
 import numpy as np
 import re
 import os
+import pkgutil
 from bs4 import BeautifulSoup
 
 
@@ -146,22 +147,24 @@ def get_nematode(max_docs = None, min_word_count = 1):
     return listsToVec(lists[:max_docs], min_word_count=min_word_count)
 
 
-def get_reuters(max_docs = None, min_word_count = 1, data_dir = 'data'):
+def get_reuters(max_docs = None, min_word_count = 1):
     """
     Returns the data matrix X and document encodings j in the Reuters data.
     data_dir: a path to the directory containing the pre-downloaded Reuters data.
     """
     
-    directory = os.fsencode('../data')
+    #directory = pkgutil.get_data('hdp_py', 'data') #os.fsencode(data_dir)
     docs = []
-    for file in os.listdir(directory):
-        root = directory.decode('ascii')
-        filename = os.fsdecode(file)
-        f = open(f'{root}/{filename}', 'r')
-        data= f.read()
-        soup = BeautifulSoup(data)
+    for i in range(22):
+        suffix = '%03i' % i
+        #root = directory.decode('ascii')
+        #filename = os.fsdecode(file)
+        #print(filename)
+        #f = open(filename, 'r')
+        data = pkgutil.get_data('hdp_py', f'data/reut2-{suffix}.sgm')
+        soup = BeautifulSoup(data, features='lxml')
         contents = soup.findAll('text')
-        f.close()
+        #f.close()
         docs.append(str(contents).split('</text>'))
 
     docs = [i for doc in docs for i in doc]
@@ -193,6 +196,7 @@ def get_test_data(N, L, Jmax):
     col_choices = np.random.choice(L, size=N)
     Xtest[range(N), col_choices] = 1
     return Xtest, j
+
 
 def get_simulated_pop_data():
     """
