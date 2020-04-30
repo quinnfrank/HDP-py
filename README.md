@@ -10,12 +10,12 @@ This package implements the Hierarchical Dirichlet Process (HDP) described by [T
 To install the package, use `python setup.py install`.
 
 The following prerequisites are required (the module versions shown were those used in development):
-+ numpy 1.16.5
-+ pandas 0.25.1
-+ scipy 1.3.1
-+ numba 0.45.1
-+ beautifulsoup4 4.8.0
-+ nltk 3.4.5
++ `numpy` 1.16.5
++ `pandas` 0.25.1
++ `scipy` 1.3.1
++ `numba` 0.45.1
++ `beautifulsoup4` 4.8.0
++ `nltk` 3.4.5
 
 ## Authors
 
