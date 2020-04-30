@@ -7,7 +7,7 @@ This package implements the Hierarchical Dirichlet Process (HDP) described by [T
 
 ## Installation
 
-To install the package, use `python setup.py install`.
+To install the package, navigate to this directory and use `python setup.py install`.
 
 The following prerequisites are required (the module versions shown were those used in development):
 + `numpy` 1.16.5
