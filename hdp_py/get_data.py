@@ -146,7 +146,7 @@ def get_nematode(max_docs = None, min_word_count = 1):
     return listsToVec(lists[:max_docs], min_word_count=min_word_count)
 
 
-def get_reuters(max_docs = None, min_word_count = 1, data_dir = '../data'):
+def get_reuters(max_docs = None, min_word_count = 1, data_dir = 'data'):
     """
     Returns the data matrix X and document encodings j in the Reuters data.
     data_dir: a path to the directory containing the pre-downloaded Reuters data.
