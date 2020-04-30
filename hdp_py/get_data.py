@@ -181,7 +181,7 @@ def get_reuters(max_docs = None, min_word_count = 1):
     docs = [i.split() for i in docs]
     
     if max_docs is None:
-        max_docs = len(cocs)
+        max_docs = len(docs)
     return listsToVec(docs[:max_docs], min_word_count=min_word_count)
 
 
