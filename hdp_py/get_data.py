@@ -265,7 +265,7 @@ def LDA_preprocessing(data, n_documents, test_size, min_word_count):
     selected = np.random.choice(len(data), n_documents, replace = False)
     subset_data = [data[i] for i in selected]
     
-    docs, one_list, vocab = reducedVocab(subset_docs, min_word_count = min_word_count)
+    docs, one_list, vocab = reducedVocab(subset_data, min_word_count = min_word_count)
     
     cut_off = int(np.floor(n_documents * test_size))
     train, test = docs[:cut_off], docs[cut_off:]
