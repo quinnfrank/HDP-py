@@ -16,6 +16,7 @@ The following prerequisites are required (the module versions shown were those u
 + `numba` 0.45.1
 + `beautifulsoup4` 4.8.0
 + `nltk` 3.4.5
++ `gensim` 3.8.0
 
 ## Authors
 
