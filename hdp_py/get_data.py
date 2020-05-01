@@ -9,6 +9,8 @@ import re
 import os
 import pkgutil
 from bs4 import BeautifulSoup
+import gensim
+import gensim.corpora as corpora
 
 
 def docsToList(data):
@@ -131,7 +133,7 @@ def listsToVec(lists, stop_words = None, min_word_count = 10, verbose = 1):
 ### DATA GETTING FUNCTIONS
 
 
-def get_nematode(max_docs = None, min_word_count = 1):
+def get_nematode(max_docs = None, min_word_count = 1, LDA = False):
     """
     Returns the data matrix X and document encodings j from the nematode abstracts
     used in the HDP paper.
@@ -144,10 +146,13 @@ def get_nematode(max_docs = None, min_word_count = 1):
     lists = docsToList(data)
     if max_docs is None:
         max_docs = len(lists)
-    return listsToVec(lists[:max_docs], min_word_count=min_word_count)
+    
+    if LDA = False:
+        return listsToVec(lists[:max_docs], min_word_count=min_word_count)
+    else:
+        return reducedVocab(lists[:max_docs], min_word_count = min_word_count)
 
-
-def get_reuters(max_docs = None, min_word_count = 1):
+def get_reuters(max_docs = None, min_word_count = 1, LDA = False):
     """
     Returns the data matrix X and document encodings j in the Reuters data.
     data_dir: a path to the directory containing the pre-downloaded Reuters data.
@@ -182,7 +187,11 @@ def get_reuters(max_docs = None, min_word_count = 1):
     
     if max_docs is None:
         max_docs = len(docs)
-    return listsToVec(docs[:max_docs], min_word_count=min_word_count)
+    
+    if LDA = False:
+        return listsToVec(docs[:max_docs], min_word_count=min_word_count)
+    else:
+        return reducedVocab(docs[:max_docs], min_word_count = min_word_count)
 
 
 def get_test_data(N, L, Jmax):
@@ -240,3 +249,83 @@ def get_simulated_pop_data():
     return pop_obs[:, None], study_factor, cond_tracker
     
     
+ ### LDA FUNCTIONS
+
+def LDA_preprocessing(data, n_documents, test_size, min_word_count):
+    '''
+    This function takes in data formatted by any of the get_{topic}_data functions with LDA = true called.
+    
+    n_documents: the number of documents to select from data. 
+    test_size: the proportion of n_documents that should be held out for testing
+    min_word_count: the minimum number of times a word should appear to be kept in vocabulary
+    
+    This function returns id2word and corpus for LDA training and testing
+    '''
+    
+    selected = np.random.choice(len(data), n_documents, replace = False)
+    subset_data = [data[i] for i in selected]
+    
+    docs, one_list, vocab = reducedVocab(subset_docs, min_word_count = min_word_count)
+    
+    cut_off = int(np.floor(n_documents * test_size))
+    train, test = docs[:cut_off], docs[cut_off:]
+    
+    id2word = corpora.Dictionary(docs)
+    train_corpus = [id2word.doc2bow(doc) for doc in train]
+    test_corpus = [id2word.doc2bow(doc) for doc in test]
+    
+    return id2word, train_corpus, test_corpus, test
+
+def LDA(id2word, corpus, n_topics):
+    '''
+    This function runs gensim's LdaModel.
+    '''
+    
+    lda_model = gensim.models.ldamodel.LdaModel(corpus = corpus,
+                                               id2word = id2word,
+                                               num_topics = n_topics,
+                                               random_state = 23,
+                                               alpha = 'asymmetric',
+                                               iterations = 500)
+    
+    return lda_model
+
+def perplexity(model, test_corpus, test):
+    '''
+    This function takes a trained LDA model and calculates the perplexity of the test corpus
+    '''
+    
+    model.get_document_topics(test_corpus, minimum_probability = 1e-8, per_word_topics = True)       
+    
+    new_topics = model[test_corpus]
+    
+    log_perplex = 0
+
+    for i in range(len(test_corpus)):
+        theta = [e for _, e in new_topics[i][0]]
+        phi = []
+        for j in range(len(new_topics[i][2])):
+            first, second = new_topics[i][2][j]
+            for k in range(len(theta)):
+                phi.append([e for _, e in second if _ == k])
+                if len(phi[j*len(theta) + k]) == 0:
+                    phi[j*len(theta) + k] = [0]
+        phi = np.array(phi).reshape(-1, len(theta))
+        log_perplex -= np.sum(np.log(np.inner(theta, phi)))
+
+    N = len([i for sublist in test for i in sublist])
+
+    return np.exp(log_perplex / N)
+
+def plt_perplexity(perplexity, min_topics, max_topics):
+    '''
+    This function plots the perplexity given perplexity array.
+    
+    First row of perplexity array is the perplexity values
+    Second row of perplexity array is the corresponding number of topics used for LDA training
+    '''
+    plt.plot(perplexity[1,:], perplexity[0,:])
+    plt.xlabel('Number of LDA Topics')
+    plt.ylabel('Perplexity')
+    plt.title('Perplexity of LDA Model on Test Documents')
+    plt.show()
