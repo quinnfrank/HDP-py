@@ -147,7 +147,7 @@ def get_nematode(max_docs = None, min_word_count = 1, LDA = False):
     if max_docs is None:
         max_docs = len(lists)
     
-    if LDA = False:
+    if LDA == False:
         return listsToVec(lists[:max_docs], min_word_count=min_word_count)
     else:
         return reducedVocab(lists[:max_docs], min_word_count = min_word_count)
@@ -188,7 +188,7 @@ def get_reuters(max_docs = None, min_word_count = 1, LDA = False):
     if max_docs is None:
         max_docs = len(docs)
     
-    if LDA = False:
+    if LDA == False:
         return listsToVec(docs[:max_docs], min_word_count=min_word_count)
     else:
         return reducedVocab(docs[:max_docs], min_word_count = min_word_count)
