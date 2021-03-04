@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="hdp_py",
-    version="0.1",
+    version="0.1.1",
     author="Quinn Frank, Morris Greenberg, George Lindner",
     author_email="quinn.frank@duke.edu, morris.greenberg@duke.edu, george.lindner@duke.edu",
     description="A Python implementation of the hierarchical Dirichlet process proposed in Teh, et al (2006)",
@@ -22,4 +22,8 @@ setuptools.setup(
         "Development Status :: 3 - Alpha"
     ],
     python_requires='>=3.7',
+    install_requires=['numpy',
+                      'pandas',
+                      'scipy',
+                      'numba']
 )

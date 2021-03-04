@@ -7,13 +7,15 @@ This package implements the Hierarchical Dirichlet Process (HDP) described by [T
 
 ## Installation
 
-To install the package, navigate to this directory and use `python setup.py install`.  The easiest way to import will be `from hdp_py import HDP, get_data`.  The former module contains the definition for the actual HDP class, while the latter contains some helper functions to access pre-formatted data compatible with this class.  See the `examples/` directory for more details.
+To install the package, navigate to this directory and use `python setup.py install`, then import the class with `from hdp_py import HDP`.  The former module contains the definition for the actual HDP class, while the latter contains some helper functions to access pre-formatted data compatible with this class.  See the `examples/` directory for more details.
 
-The following prerequisites are required (the module versions shown were those used in development):
+The following prerequisites are required and will be installed by default (the versions shown were those used in development):
 + `numpy` 1.16.5
 + `pandas` 0.25.1
 + `scipy` 1.3.1
 + `numba` 0.45.1
+
+The following packages are not required but are recommended to run the helper functions in the `get_data` module.  These access pre-formatted data compatible with the HDP class and provide functionality to compare the performance of our HDP implementation with `gensim`'s LDA implementation.
 + `beautifulsoup4` 4.8.0
 + `nltk` 3.4.5
 + `gensim` 3.8.0
