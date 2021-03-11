@@ -17,7 +17,8 @@ def docsToList(data):
     '''
     This function takes a string of abstracts and converts it to a list of lists of the words in each abstract.
     This function was made specifically for the data obtained here:
-    https://raw.githubusercontent.com/tdhopper/topic-modeling-datasets/master/data/raw/Nematode%20biology%20abstracts/cgcbib.txt
+    https://raw.githubusercontent.com/tdhopper/topic-modeling
+    datasets/master/data/raw/Nematode%20biology%20abstracts/cgcbib.txt
     '''
     
     # Remove '\n' and '\r'
@@ -57,8 +58,9 @@ def docsToList(data):
 
 def reducedVocab(lists, stop_words = None, min_word_count = 10):
     '''
-    This function takes a list of words in a list of documents and returns the lists of lists with a reduced
-    vocabulary, the flattened list, and the vocabulary
+    This function takes a list of words in a list of documents and
+    returns the lists of lists with a reduced vocabulary,
+    the flattened list, and the vocabulary
     '''
     
     if stop_words == None:
@@ -84,8 +86,9 @@ def reducedVocab(lists, stop_words = None, min_word_count = 10):
 
 def listsToVec(lists, stop_words = None, min_word_count = 10, verbose = 1):
     '''
-    This function takes a list of lists of the words in each document. It removes any stop words, removes words that
-    appear 'min_word_count' times or less, and maps each word in the documents' vocabulary to a number. 
+    This function takes a list of lists of the words in each document.
+    It removes any stop words, removes words that appear 'min_word_count' times or less,
+    and maps each word in the documents' vocabulary to a number. 
     Returns: data matrix X, where each row is a draw from a categorical distribution representing one word
              vector j encoding the corresponding documents each word belongs to'''
 
@@ -152,6 +155,7 @@ def get_nematode(max_docs = None, min_word_count = 1, LDA = False):
     else:
         return reducedVocab(lists[:max_docs], min_word_count = min_word_count)
 
+    
 def get_reuters(max_docs = None, min_word_count = 1, LDA = False):
     """
     Returns the data matrix X and document encodings j in the Reuters data.

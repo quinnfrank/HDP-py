@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from scipy.special import gammaln as logg
-from numba import jit, float64, int64, int32
+from numba import jit, float64, int64, int32, boolean
 
 
 def pois_fk_cust(i, x, k, Kmax, ha, hb, new=False):
@@ -222,6 +222,48 @@ def cat_fk_cust3_new(i, x, k, Kmax, L, ha):
         if x[i, idx] == 1:
             ll = idx
             break
+            
+    # Calculate the case where k has no members
+    ha_sum = 0
+    for idx in range(L):
+        ha_sum += ha[idx]
+        
+    return ha[ll] / ha_sum
+
+
+@jit(float64[:](int64, int32[:], int32[:], int64, int64, float64[:]), nopython=True)
+def cat_fk_cust4(i, x, k, Kmax, L, ha):
+    """Numba-compiled version of the above where New=False.
+       Only supports sparse matrices, where x is the `indices` attribute."""
+    
+    ll = x[i]
+
+    ha_sum = 0
+    for idx in range(L):
+        ha_sum += ha[idx]
+    
+    # Store the size of sets V and V_l for each k
+    N = x.shape[0]
+    V_kks = np.zeros(Kmax)
+    Vl_kks = np.zeros(Kmax)
+    fk_cust = np.zeros(Kmax)
+    
+    for idx in range(N):
+        # Compute the V and Vl sets with one pass through the data
+        kk = k[idx]
+        V_kks[kk] += 1
+        Vl_kks[kk] += (x[idx] == ll)
+    
+    for kk in range(Kmax):
+        fk_cust[kk] = (Vl_kks[kk] - (x[idx] == kk) + ha[ll]) / (V_kks[kk] - 1 + ha_sum)
+    return fk_cust
+
+
+@jit(float64(int64, int32[:], int32[:], int64, int64, float64[:]), nopython=True)
+def cat_fk_cust4_new(i, x, k, Kmax, L, ha):
+    """Numba-compiled version of the above where new=True."""
+    
+    ll = x[i]
             
     # Calculate the case where k has no members
     ha_sum = 0
