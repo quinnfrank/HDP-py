@@ -2,6 +2,7 @@ import urllib
 import string
 from itertools import compress
 from nltk.corpus import stopwords 
+from nltk.tokenize import word_tokenize
 import pandas as pd
 from functools import reduce
 import numpy as np
@@ -17,7 +18,8 @@ def docsToList(data):
     '''
     This function takes a string of abstracts and converts it to a list of lists of the words in each abstract.
     This function was made specifically for the data obtained here:
-    https://raw.githubusercontent.com/tdhopper/topic-modeling-datasets/master/data/raw/Nematode%20biology%20abstracts/cgcbib.txt
+    https://raw.githubusercontent.com/tdhopper/topic-modeling
+    datasets/master/data/raw/Nematode%20biology%20abstracts/cgcbib.txt
     '''
     
     # Remove '\n' and '\r'
@@ -57,8 +59,9 @@ def docsToList(data):
 
 def reducedVocab(lists, stop_words = None, min_word_count = 10):
     '''
-    This function takes a list of words in a list of documents and returns the lists of lists with a reduced
-    vocabulary, the flattened list, and the vocabulary
+    This function takes a list of words in a list of documents and
+    returns the lists of lists with a reduced vocabulary,
+    the flattened list, and the vocabulary
     '''
     
     if stop_words == None:
@@ -84,8 +87,9 @@ def reducedVocab(lists, stop_words = None, min_word_count = 10):
 
 def listsToVec(lists, stop_words = None, min_word_count = 10, verbose = 1):
     '''
-    This function takes a list of lists of the words in each document. It removes any stop words, removes words that
-    appear 'min_word_count' times or less, and maps each word in the documents' vocabulary to a number. 
+    This function takes a list of lists of the words in each document.
+    It removes any stop words, removes words that appear 'min_word_count' times or less,
+    and maps each word in the documents' vocabulary to a number. 
     Returns: data matrix X, where each row is a draw from a categorical distribution representing one word
              vector j encoding the corresponding documents each word belongs to'''
 
@@ -152,6 +156,7 @@ def get_nematode(max_docs = None, min_word_count = 1, LDA = False):
     else:
         return reducedVocab(lists[:max_docs], min_word_count = min_word_count)
 
+    
 def get_reuters(max_docs = None, min_word_count = 1, LDA = False):
     """
     Returns the data matrix X and document encodings j in the Reuters data.
@@ -192,6 +197,37 @@ def get_reuters(max_docs = None, min_word_count = 1, LDA = False):
         return listsToVec(docs[:max_docs], min_word_count=min_word_count)
     else:
         return reducedVocab(docs[:max_docs], min_word_count = min_word_count)
+    
+
+def get_reuters_new(max_docs=None, max_files=22, seed=0):
+    """Accesses pre-downloaded Reuters data to use for topic modeling.
+       Does all preprocessing and tokenization and returns an iterable
+       of iterable of str tokens, in bag of word format."""
+    
+    import re
+    from string import ascii_lowercase
+    
+    docs = []
+    letters = set(list(ascii_lowercase))
+    stops = set(stopwords.words("english"))
+        
+    for i in range(max_files):
+        suffix = '%03i' % i
+        data = pkgutil.get_data('hdp_py', f'data/reut2-{suffix}.sgm').decode("utf-8")
+        
+        # Select all the <body> tags manually, then tokenize into word tokens
+        raw_docs = re.findall(r"(?<=<body>)[\s\S]*?(?=</body>)", str(data).lower())
+        raw_bow = [word_tokenize(doc) for doc in raw_docs]
+        bow = [[word for word in bag if word[0] in letters and word not in stops]
+               for bag in raw_bow]
+        docs += bow
+      
+    if max_docs is None: max_docs = len(docs)
+    # Select a random subset of documents rather than contiguous docs
+    np.random.seed(seed)
+    docs_choice = np.random.choice(len(docs), size=max_docs)
+
+    return [doc for i, doc in enumerate(docs) if i in docs_choice]
 
 
 def get_test_data(N, L, Jmax):

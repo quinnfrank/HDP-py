@@ -413,4 +413,3 @@ class HDP:
         self.direct_samples = self.direct_samples[1:,:,1]
         self.beta_samples = self.beta_samples[1:,:]
         return self
-        
