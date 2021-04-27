@@ -253,9 +253,11 @@ def cat_fk_cust4(i, x, k, Kmax, L, ha):
         kk = k[idx]
         V_kks[kk] += 1
         Vl_kks[kk] += (x[idx] == ll)
+    # Offset the cluster x[i] is in by 1
+    Vl_kks[k[i]] -= 1
     
     for kk in range(Kmax):
-        fk_cust[kk] = (Vl_kks[kk] - (x[idx] == kk) + ha[ll]) / (V_kks[kk] - 1 + ha_sum)
+        fk_cust[kk] = (Vl_kks[kk] + ha[ll]) / (V_kks[kk] - 1 + ha_sum)
     return fk_cust
 
 

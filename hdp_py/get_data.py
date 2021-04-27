@@ -2,6 +2,7 @@ import urllib
 import string
 from itertools import compress
 from nltk.corpus import stopwords 
+from nltk.tokenize import word_tokenize
 import pandas as pd
 from functools import reduce
 import numpy as np
@@ -196,6 +197,37 @@ def get_reuters(max_docs = None, min_word_count = 1, LDA = False):
         return listsToVec(docs[:max_docs], min_word_count=min_word_count)
     else:
         return reducedVocab(docs[:max_docs], min_word_count = min_word_count)
+    
+
+def get_reuters_new(max_docs=None, max_files=22, seed=0):
+    """Accesses pre-downloaded Reuters data to use for topic modeling.
+       Does all preprocessing and tokenization and returns an iterable
+       of iterable of str tokens, in bag of word format."""
+    
+    import re
+    from string import ascii_lowercase
+    
+    docs = []
+    letters = set(list(ascii_lowercase))
+    stops = set(stopwords.words("english"))
+        
+    for i in range(max_files):
+        suffix = '%03i' % i
+        data = pkgutil.get_data('hdp_py', f'data/reut2-{suffix}.sgm').decode("utf-8")
+        
+        # Select all the <body> tags manually, then tokenize into word tokens
+        raw_docs = re.findall(r"(?<=<body>)[\s\S]*?(?=</body>)", str(data).lower())
+        raw_bow = [word_tokenize(doc) for doc in raw_docs]
+        bow = [[word for word in bag if word[0] in letters and word not in stops]
+               for bag in raw_bow]
+        docs += bow
+      
+    if max_docs is None: max_docs = len(docs)
+    # Select a random subset of documents rather than contiguous docs
+    np.random.seed(seed)
+    docs_choice = np.random.choice(len(docs), size=max_docs)
+
+    return [doc for i, doc in enumerate(docs) if i in docs_choice]
 
 
 def get_test_data(N, L, Jmax):

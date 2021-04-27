@@ -4,6 +4,7 @@ from scipy import sparse
 from scipy.special import gammaln as logg
 from functools import partial
 from numba import jit, float64, int64, int32, boolean
+from gensim.models.coherencemodel import CoherenceModel
 
 from hdp_py.StirlingEngine import *
 from hdp_py.mixture_functions import *
@@ -11,7 +12,8 @@ from hdp_py.mixture_functions import *
 
 class HDPTopic:
     """
-    Model implementing the Chinese Restaurant Franchise Process formulation of the HDP.
+    Model which clusters a corpus of documents nonparametrically via a
+    Hierarchical Dirichlet Process.
     
     CONSTRUCTOR PARAMETERS
     - vocab: a gensim Dictionary object which maps integer ids -> tokens
@@ -40,13 +42,27 @@ class HDPTopic:
         # Set a weak, uniform concentration if none provided
         if h_con is None:
             L = len(vocab)
-            self.hypers_ = (L, np.ones(L))
+            self.hypers_ = (L, np.full(L, 0.5))
         else:
             self.hypers_ = (len(h_con), h_con)
         
         self.vocab = vocab
         self.fk_cust_ = cat_fk_cust4
         self.fk_cust_new_ = cat_fk_cust4_new
+    
+    
+    def initial_tally(self, j):
+        """
+        Helper function for computing cluster counts q_ following the
+        initial random cluster allocation for the tokens.
+        """    
+        
+        jk_pairs = np.stack([j, self.direct_samples[0,:]], axis=1)
+        # Counts words in document j assigned to cluster k
+        pair_counts = pd.Series(map(tuple, jk_pairs)).value_counts()
+        j_idx, k_idx = tuple(map(np.array, zip(*pair_counts.index)))
+        self.q_ *= 0
+        self.q_[j_idx, k_idx] = pair_counts
 
         
     def get_dist(self, old, new, used, size):
@@ -166,7 +182,7 @@ class HDPTopic:
         k_next = self.direct_samples[it,:]
         self.m_ *= 0                           # reset the m counts
         # Cycle through the k values of each restaurant
-        j_idx, k_idx = np.where(self.q_ > 0)   # find the consumed dishes
+        j_idx, k_idx = np.where(self.q_ > 0)   # find the occupied clusters
         for i in np.random.permutation(len(j_idx)):
             jj, kk = j_idx[i], k_idx[i]
             max_m = self.q_[jj, kk]
@@ -176,24 +192,27 @@ class HDPTopic:
             log_s = np.array([self.stir_.stirlog(max_m, m) for m in m_range])
             m_dist = np.exp( logg(abk) - logg(abk + max_m) +
                              log_s + m_range * np.log(abk) )
-            """MOSTLY FIXED.  m_dist should be a proper distribution"""
+            
             m_dist[np.logical_not(np.isfinite(m_dist))] = 0
             m_dist += 1e-10
+            m_dist /= np.sum(m_dist)
             
-            mm1 = np.random.choice(m_range, p=m_dist/np.sum(m_dist))
+            mm1 = np.random.choice(m_range, p=m_dist)
             self.m_[jj, kk] = mm1
     
     
-    def gibbs_direct(self, x, j, iters, Kmax=None, resume=False, verbose=False):
+    def gibbs_direct(self, x, j, iters, Kmax=None, init_clusters=0.1, resume=False,
+                     verbose=False, every=1):
         """
         Runs the Gibbs sampler to generate posterior estimates of k.
         x: vector of ints mapping to individual tokens, in a bag of words format
         j: vector of ints labeling document number for each token
         iters: number of iterations to run
         Kmax: maximum number of clusters that can be used (set much higher than needed)
+        init_clusters: fraction of Kmax to fill with initial cluster assignmetns
         resume: if True, will continue from end of previous direct_samples, if dimensions match up
         
-        returns: this HDPTopic object with direct_samples attribute
+        modifies this HDPTopic object's direct_samples attribute
         """
         
         group_counts = pd.Series(j).value_counts()
@@ -224,9 +243,12 @@ class HDPTopic:
             self.q_ = np.zeros((J, Kmax), dtype='int')   # counts number of tokens in doc j, cluster k
             self.m_ = np.zeros((J, Kmax), dtype='int')   # counts number of k-clusters in doc j
             
-            # Initialize all tokens in the same cluster: q_jk = |doc_j|
-            self.q_[group_counts.index, 0] = group_counts.values
-            # Initialize to one cluster per document: m_jk = 1
+            # Initialize all tokens to a random cluster, to improve MCMC mixing
+            # But only allocate a portion of Kmax, for efficiency
+            K0_max = min(Kmax, int(init_clusters * Kmax))
+            self.direct_samples[0,:] = np.random.randint(0, K0_max, size=N)
+            self.initial_tally(j)
+            # Initialize to one cluster of type k per document: m_jk = 1
             self.m_[:, :] = (self.q_ > 0).astype('int')
             # Compute the corresponding beta values from m assignments
             Mk = np.sum(self.m_, axis=0)
@@ -243,9 +265,98 @@ class HDPTopic:
             Mk = np.sum(self.m_, axis=0)
             # Dirichlet weights must be > 0, so in case some k is unused, add epsilon
             self.beta_samples[s+1,:] = np.random.dirichlet(np.append(Mk, self.g_) + 1e-100)
-            if verbose: print(self.beta_samples[s+1,:].round(3))
+            
+            if verbose and s % every == 0:
+                num_clusters = np.sum(self.beta_samples[s+1, :-1] > 0)
+                sorted_beta = np.sort(self.beta_samples[s+1, :-1])[::-1][:10]
+                print(f"{num_clusters} c: {sorted_beta.round(3)}...")
         
         self.direct_samples = self.direct_samples[1:,:]
         self.beta_samples = self.beta_samples[1:,:]
-        return self
+    
+    
+    ### Additional HDPTopic methods meant for analyzing text data
+                             
+    def process_docs(self, docs, min_cf=1, min_df=1, max_docs=None):
+        """Given an iterable of iterable of str tokens (bag of words),
+           filters all tokens below given cf/df threshold, removing whole docs if necessary.
+           Updates `vocab` and computes necessary arrays for gibbs_direct().
+           RETURNS
+           - new_docs: the updated bag of words after filtering, in str form
+           - x: #words length vector of int values, with mappings defined in `vocab.token2id`
+           - j: #words length vector of document labels for each word"""
+
+        ii = 0      # current word index, across all documents
+        jj = 0      # current document index
+        x = np.zeros(self.vocab.num_pos, dtype='int')
+        j = np.zeros(self.vocab.num_pos, dtype='int')
+        new_docs = []
+        if max_docs is None: max_docs = len(docs)
+
+        for doc in docs:
+            new_doc = []
+            for word in doc:
+                idx = self.vocab.token2id[word]
+                if self.vocab.cfs[idx] >= min_cf and self.vocab.dfs[idx] >= min_df:
+                    new_doc.append(word)
+                    x[ii] = idx
+                    j[ii] = jj
+                    ii += 1
+            # Only increment the document value if words still exist
+            if len(new_doc) > 0:
+                new_docs.append(new_doc)
+                jj += 1
+            # End the loop prematurely if we have enough documents
+            if len(new_docs) >= max_docs:
+                break
+
+        #self.vocab = self.vocab.from_documents(new_docs)
+        return new_docs, x[:ii], j[:ii]
+    
+    
+    def summarize_clusters(self, burn=0, threshold=0):
+        """Computes number of clusters for z_ij (cluster assignment) posterior samples.
+           Ignores clusters below `threshold` probability value."""
+        
+        occupied_mask = self.beta_samples[burn:, :-1] > threshold
+        return np.sum(occupied_mask, axis=1)
+    
+    
+    def get_topics(self, it, x, threshold=0):
+        """Computes which words are in each topic at given iteration.
+           Ignores clusters whose beta value is below `threshold` probability value."""
+        
+        occupied = np.where(self.beta_samples[it, :-1] > threshold)[0]
+        k = self.direct_samples[it, :]
+        topics = []
+        
+        for kk in occupied:
+            topic_idxs = x[k == kk]
+            topic = [self.vocab[idx] for idx in topic_idxs]
+            # Store unique words in topic, order by appearance count
+            topic_dist = pd.Series(topic).value_counts().sort_values()
+            topics.append(list(topic_dist.index))
+            
+        return topics
+        
+        
+    def summarize_coherence(self, docs, x, burn=0, threshold=0):
+        """Computers topic coherence for z_ij (cluster assignment) posterior samples.
+           Ignores clusters below `threshold` probability value."""
+        
+        posterior = self.direct_samples[burn:, :]
+        coherence = np.zeros(posterior.shape[0])
+        
+        # Fit a separate CoherenceModel for each sample's assignments
+        # Requires computing topics first
+        for s in range(len(coherence)):
+            topics = self.get_topics(s, x, threshold)
+            cm = CoherenceModel(topics=topics, texts=docs, dictionary=self.vocab,
+                                coherence='u_mass')
+            coherence[s] = cm.get_coherence()
+            
+        return coherence
+            
+        
+        
         
